@@ -142,7 +142,7 @@ const DEFAULT_USERS: UserProfile[] = [
   { id: '2', name: 'سيد', role: 'editor', password: '123' },
   { id: '5', name: 'محمد', role: 'editor', password: '123' },
   { id: '3', name: 'عمر', role: 'readonly', password: '123' },
-  { id: '4', name: 'يوزر ادمن', role: 'password_manager', password: '123' }
+  { id: '4', name: 'ادمن', role: 'password_manager', password: '123' }
 ];
 
 // --- Voice Recognition Hook ---
@@ -195,7 +195,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Auth & Security States
-  const [loginSelectedUser, setLoginSelectedUser] = useState<UserProfile | null>(null);
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordPasswordInput] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -218,13 +218,19 @@ export default function App() {
 
     // 1. Sync Users
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), async (snapshot) => {
-      if (snapshot.empty) {
-        // Bootstrap initial users if DB is empty
-        for (const u of DEFAULT_USERS) {
-          await setDoc(doc(db, 'users', u.id), u);
+      const usersList = snapshot.docs.map(doc => doc.data() as UserProfile);
+      
+      // Check if all default users are present with correct names
+      let needsSync = false;
+      for (const du of DEFAULT_USERS) {
+        const existing = usersList.find(u => u.id === du.id);
+        if (!existing || existing.name !== du.name) {
+          needsSync = true;
+          await setDoc(doc(db, 'users', du.id), du, { merge: true });
         }
-      } else {
-        const usersList = snapshot.docs.map(doc => doc.data() as UserProfile);
+      }
+
+      if (!needsSync) {
         setUsers(usersList);
       }
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
@@ -266,19 +272,41 @@ export default function App() {
     }
   }, [users]);
 
+  const normalizeArabic = (text: string) => {
+    return text
+      .trim()
+      .replace(/[أإآا]/g, 'ا')
+      .replace(/[يى]/g, 'ي')
+      .replace(/[ةه]/g, 'ه')
+      .replace(/\s+/g, '');
+  };
+
   const handleLoginAttempt = () => {
-    if (!loginSelectedUser) return;
-    if (passwordInput === loginSelectedUser.password) {
-      setCurrentUser(loginSelectedUser);
+    const input = usernameInput.trim();
+    if (!input) {
+      alert('يرجى إدخال اسم المستخدم');
+      return;
+    }
+    
+    const normalizedInput = normalizeArabic(input);
+    const foundUser = users.find(u => normalizeArabic(u.name) === normalizedInput);
+    
+    if (!foundUser) {
+      alert('اسم المستخدم غير موجود');
+      return;
+    }
+
+    if (passwordInput === foundUser.password) {
+      setCurrentUser(foundUser);
       setIsLoggedIn(true);
-      if (loginSelectedUser.role === 'password_manager') {
+      if (foundUser.role === 'password_manager') {
         setActiveTab('security');
       } else {
         setActiveTab('input');
       }
-      localStorage.setItem('nakla_current_user_id', loginSelectedUser.id);
+      localStorage.setItem('nakla_current_user_id', foundUser.id);
       setPasswordPasswordInput('');
-      setLoginSelectedUser(null);
+      setUsernameInput('');
     } else {
       alert('كلمة المرور غير صحيحة');
     }
@@ -290,15 +318,16 @@ export default function App() {
   };
 
   const handlePasswordChangeInLogin = async () => {
-    if (!loginSelectedUser || !newPasswordInput.trim()) return;
+    const foundUser = users.find(u => u.name === usernameInput.trim());
+    if (!foundUser || !newPasswordInput.trim()) return;
     
     try {
-      await updateDoc(doc(db, 'users', loginSelectedUser.id), { password: newPasswordInput });
+      await updateDoc(doc(db, 'users', foundUser.id), { password: newPasswordInput });
       alert('تم تحديث كلمة المرور بنجاح. يمكنك الدخول الآن.');
       setNewPasswordInput('');
       setIsChangingPassword(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${loginSelectedUser.id}`);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${foundUser.id}`);
     }
   };
 
@@ -665,74 +694,51 @@ export default function App() {
              <Truck className="w-12 h-12 text-white" />
            </div>
            
-           {!loginSelectedUser ? (
-             <>
-               <h1 className="text-2xl font-black mb-2 tracking-tight">نـقـلـة بـرو</h1>
-               <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mb-10">اختر حسابك للدخول</p>
-               <div className="w-full relative">
-                 <div className="w-full space-y-4 max-h-[380px] md:max-h-[420px] overflow-y-auto custom-scrollbar px-2 py-1">
-                   {users.map(user => (
-                     <button
-                       key={user.id}
-                       onClick={() => setLoginSelectedUser(user)}
-                       className="w-full group flex items-center justify-between p-5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl transition-all duration-300 active:scale-95"
-                     >
-                       <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                            <User size={20} className={user.role === 'admin' ? 'text-emerald-400' : 'text-slate-300'} />
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-sm group-hover:text-white transition-colors">{user.name}</p>
-                            <p className="text-[10px] text-slate-500 group-hover:text-white/60 transition-colors">
-                              {user.role === 'admin' ? 'مدير النظام' : user.role === 'editor' ? 'مدخل بيانات' : user.role === 'password_manager' ? 'مسؤول الأمان' : 'مراقب'}
-                            </p>
-                          </div>
-                       </div>
-                       <ChevronLeft className="w-5 h-5 text-slate-700 group-hover:text-white transition-all group-hover:-translate-x-1" />
-                     </button>
-                   ))}
-                 </div>
-                 {users.length > 3 && (
-                   <div className="flex justify-center mt-4 opacity-30 animate-bounce pointer-events-none">
-                     <ChevronRight className="rotate-90 w-4 h-4" />
-                   </div>
-                 )}
-               </div>
-             </>
-           ) : (
-             <div className="w-full flex flex-col items-center animate-fade-in">
-               <h2 className="text-xl font-bold mb-2">{loginSelectedUser.name}</h2>
-               <p className="text-slate-500 text-[10px] font-bold uppercase mb-8 tracking-widest text-center">يرجى إدخال كلمة المرور</p>
-               
-               <input 
-                 autoFocus
-                 type="password"
-                 value={passwordInput}
-                 onChange={(e) => setPasswordPasswordInput(e.target.value)}
-                 onKeyDown={(e) => e.key === 'Enter' && handleLoginAttempt()}
-                 className="w-full bg-[#0F1020] border-2 border-white/10 rounded-2xl px-6 py-4 text-center text-xl tracking-[0.5em] focus:border-[#6366F1] outline-none transition-all mb-6"
-                 placeholder="••••"
-               />
-               
-               <button 
-                 onClick={handleLoginAttempt}
-                 className="w-full bg-[#6366F1] py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all mb-4"
-               >
-                 دخول للنظام
-               </button>
-               
-               <button 
-                 onClick={() => { setLoginSelectedUser(null); setPasswordPasswordInput(''); }}
-                 className="text-slate-500 font-bold text-xs hover:text-white transition-colors"
-               >
-                 العودة لقائمة المستخدمين
-               </button>
-             </div>
-           )}
-           
-           <p className="mt-12 text-[10px] text-slate-700 font-black uppercase tracking-widest">
-             V2.7-STABLE // AUTH_REQUIRED
-           </p>
+            <div className="w-full space-y-6">
+              <h1 className="text-2xl font-black mb-2 tracking-tight text-center">نـقـلـة بـرو</h1>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mb-4 text-center">سجل دخولك للنظام</p>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-2">اسم المستخدم</label>
+                  <input 
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    className="w-full bg-[#0F1020] border-2 border-white/10 rounded-2xl px-6 py-4 text-center text-lg font-bold focus:border-[#6366F1] outline-none transition-all"
+                    placeholder="مثال: حسن"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-2">كلمة المرور</label>
+                  <input 
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordPasswordInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLoginAttempt()}
+                    className="w-full bg-[#0F1020] border-2 border-white/10 rounded-2xl px-6 py-4 text-center text-xl tracking-[0.5em] focus:border-[#6366F1] outline-none transition-all"
+                    placeholder="••••"
+                  />
+                </div>
+              </div>
+              
+              <button 
+                onClick={handleLoginAttempt}
+                className="w-full bg-[#6366F1] py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                دخول للنظام
+              </button>
+
+              <div className="flex flex-col items-center gap-3 mt-4">
+                <p className="text-[9px] text-slate-600 font-bold text-center">
+                  المستخدمون المتاحون: {users.map(u => u.name).join(' • ')}
+                </p>
+                <p className="text-[8px] text-slate-700 font-black uppercase tracking-widest">
+                  V2.8-STABLE // DIRECT_AUTH
+                </p>
+              </div>
+            </div>
         </div>
       </div>
     );
