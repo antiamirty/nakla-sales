@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+
+    function isAdmin() { return hasRole('admin'); }
+    function isEditor() { return hasRole('editor'); }
+    function isReadOnly() { return hasRole('readonly'); }
+    function isPasswordManager() { return hasRole('password_manager'); }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 2. Users Collection
+    match /users/{userId} {
+      allow read: if true; // Allow public read to check passwords
+      
+      // Only admin can create/update users (or a bootstrap process)
+      allow create, update: if isSignedIn() && isAdmin() && isValidUser(request.resource.data);
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'role', 'password'])
+             && data.id is string && data.id.size() <= 50
+             && data.name is string && data.name.size() <= 100
+             && data.role in ['admin', 'editor', 'readonly', 'password_manager']
+             && data.password is string && data.password.size() <= 100;
+    }
+
+    // 3. Shipments Collection
+    match /shipments/{shipmentId} {
+      allow read: if true; // Allow public read for display
+      
+      allow create: if isSignedIn() && (isAdmin() || isEditor()) 
+                    && isValidShipment(request.resource.data)
+                    && request.resource.data.status == 'pending';
+      
+      allow update: if isSignedIn() && (
+        // Admin or Editor can update fields but MUST reset to pending
+        ((isAdmin() || isEditor()) && isValidShipment(request.resource.data) && request.resource.data.status == 'pending')
+        ||
+        // ReadOnly (Omar) can ONLY approve
+        (isReadOnly() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) 
+         && request.resource.data.status == 'approved')
+      );
+      
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    function isValidShipment(data) {
+      return data.keys().hasAll(['id', 'name', 'category', 'count', 'premium', 'weight', 'price', 'totalWithPremium', 'totalWithoutPremium', 'entryUser', 'date', 'timestamp', 'status', 'customerName'])
+             && data.name is string && data.name.size() <= 100
+             && data.category is string && data.category.size() <= 100
+             && data.customerName is string && data.customerName.size() <= 100
+             && data.count is number && data.count >= 0
+             && data.premium is number && data.premium >= 0
+             && data.weight is number && data.weight >= 0
+             && data.price is number && data.price >= 0
+             && data.status in ['pending', 'approved']
+             && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    // 4. Suggestions
+    match /suggestions_names/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isAdmin() || isEditor());
+    }
+    match /suggestions_categories/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isAdmin() || isEditor());
+    }
+  }
+}

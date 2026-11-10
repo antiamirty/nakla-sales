@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "System user account and roles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "editor", "readonly", "password_manager"] },
+        "password": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "password"]
+    },
+    "ShipmentEntry": {
+      "title": "Shipment Entry",
+      "description": "A single logistics record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "count": { "type": "number" },
+        "premium": { "type": "number" },
+        "weight": { "type": "number" },
+        "price": { "type": "number" },
+        "totalWithPremium": { "type": "number" },
+        "totalWithoutPremium": { "type": "number" },
+        "entryUser": { "type": "string" },
+        "date": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved"] },
+        "isModified": { "type": "boolean" },
+        "customerName": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "count", "premium", "weight", "price", "totalWithPremium", "totalWithoutPremium", "entryUser", "date", "timestamp", "status", "customerName"]
+    },
+    "Suggestion": {
+      "title": "Suggestion",
+      "description": "Quick select items for names or categories",
+      "type": "object",
+      "properties": {
+        "value": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["value", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Collection of system users"
+    },
+    "/shipments/{shipmentId}": {
+      "schema": "ShipmentEntry",
+      "description": "Logistics and shipment records"
+    },
+    "/suggestions_names/{id}": {
+      "schema": "Suggestion",
+      "description": "Historical name suggestions"
+    },
+    "/suggestions_categories/{id}": {
+      "schema": "Suggestion",
+      "description": "Historical category suggestions"
+    }
+  }
+}

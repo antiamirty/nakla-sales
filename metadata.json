@@ -1,0 +1,6 @@
+{
+  "name": "Nakla - Moving & Logistics",
+  "description": "Professional moving and transportation services for residential and commercial needs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
