@@ -669,27 +669,34 @@ export default function App() {
              <>
                <h1 className="text-2xl font-black mb-2 tracking-tight">نـقـلـة بـرو</h1>
                <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mb-10">اختر حسابك للدخول</p>
-               <div className="w-full space-y-4">
-                 {users.map(user => (
-                   <button
-                     key={user.id}
-                     onClick={() => setLoginSelectedUser(user)}
-                     className="w-full group flex items-center justify-between p-5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl transition-all duration-300 active:scale-95"
-                   >
-                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                          <User size={20} className={user.role === 'admin' ? 'text-emerald-400' : 'text-slate-300'} />
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-sm group-hover:text-white transition-colors">{user.name}</p>
-                          <p className="text-[10px] text-slate-500 group-hover:text-white/60 transition-colors">
-                            {user.role === 'admin' ? 'مدير النظام' : user.role === 'editor' ? 'مدخل بيانات' : user.role === 'password_manager' ? 'مسؤول الأمان' : 'مراقب'}
-                          </p>
-                        </div>
-                     </div>
-                     <ChevronLeft className="w-5 h-5 text-slate-700 group-hover:text-white transition-all group-hover:-translate-x-1" />
-                   </button>
-                 ))}
+               <div className="w-full relative">
+                 <div className="w-full space-y-4 max-h-[380px] md:max-h-[420px] overflow-y-auto custom-scrollbar px-2 py-1">
+                   {users.map(user => (
+                     <button
+                       key={user.id}
+                       onClick={() => setLoginSelectedUser(user)}
+                       className="w-full group flex items-center justify-between p-5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl transition-all duration-300 active:scale-95"
+                     >
+                       <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                            <User size={20} className={user.role === 'admin' ? 'text-emerald-400' : 'text-slate-300'} />
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-sm group-hover:text-white transition-colors">{user.name}</p>
+                            <p className="text-[10px] text-slate-500 group-hover:text-white/60 transition-colors">
+                              {user.role === 'admin' ? 'مدير النظام' : user.role === 'editor' ? 'مدخل بيانات' : user.role === 'password_manager' ? 'مسؤول الأمان' : 'مراقب'}
+                            </p>
+                          </div>
+                       </div>
+                       <ChevronLeft className="w-5 h-5 text-slate-700 group-hover:text-white transition-all group-hover:-translate-x-1" />
+                     </button>
+                   ))}
+                 </div>
+                 {users.length > 3 && (
+                   <div className="flex justify-center mt-4 opacity-30 animate-bounce pointer-events-none">
+                     <ChevronRight className="rotate-90 w-4 h-4" />
+                   </div>
+                 )}
                </div>
              </>
            ) : (
